@@ -1297,4 +1297,285 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start spawning obstacles
     scheduleNextSpawn();
+
+    // Add these variables at the top with other game variables
+    let isDragging = false;
+    let isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+    let lastTouchTime = 0;
+
+    // Replace the existing touch event handlers with these new ones
+    function initTouchControls() {
+        if (!isMobileDevice) return;
+        
+        // Remove any existing touch event listeners
+        document.removeEventListener('touchstart', handleTouchStart);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+        
+        // Add new touch event listeners
+        document.addEventListener('touchstart', handleTouchStart, { passive: false });
+        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd);
+        
+        // Add touchstart to cursor to make it draggable
+        cursor.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            
+            // Get the initial touch position
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            lastTouchX = touchStartX;
+            lastTouchY = touchStartY;
+            lastTouchTime = Date.now();
+            
+            // Reset inactivity timer
+            resetInactivityTimer();
+        }, { passive: false });
+    }
+
+    function handleTouchStart(e) {
+        // Only handle touch events if we're not already dragging the cursor
+        if (!isDragging) {
+            e.preventDefault();
+            
+            // Get the initial touch position
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            lastTouchX = touchStartX;
+            lastTouchY = touchStartY;
+            lastTouchTime = Date.now();
+            
+            // Reset inactivity timer
+            resetInactivityTimer();
+        }
+    }
+
+    // Modify the checkCollision function to improve mobile collision detection
+    function checkCollision(obstacle) {
+        if (obstacle.classList.contains('burst')) return false;
+        
+        const rect = obstacle.getBoundingClientRect();
+        const cursorRect = cursor.getBoundingClientRect();
+        
+        // Calculate centers
+        const obstacleCenterX = rect.left + rect.width / 2;
+        const obstacleCenterY = rect.top + rect.height / 2;
+        const cursorCenterX = cursorRect.left + cursorRect.width / 2;
+        const cursorCenterY = cursorRect.top + cursorRect.height / 2;
+        
+        // Calculate distance between centers
+        const distance = Math.hypot(
+            cursorCenterX - obstacleCenterX,
+            cursorCenterY - obstacleCenterY
+        );
+        
+        // Calculate collision threshold based on obstacle size
+        // Use a larger threshold for mobile devices
+        const collisionThreshold = isMobileDevice 
+            ? Math.max(rect.width, rect.height) * 0.7  // 70% of size for mobile
+            : Math.max(rect.width, rect.height) * 0.6; // 60% of size for desktop
+        
+        // For mobile, also check if the rectangles overlap
+        if (isMobileDevice) {
+            const rectanglesOverlap = !(
+                cursorRect.right < rect.left || 
+                cursorRect.left > rect.right || 
+                cursorRect.bottom < rect.top || 
+                cursorRect.top > rect.bottom
+            );
+            
+            // Return true if either distance-based or rectangle overlap detection triggers
+            return distance < collisionThreshold || rectanglesOverlap;
+        }
+        
+        // For desktop, just use the distance-based detection
+        return distance < collisionThreshold;
+    }
+
+    // Update the handleTouchMove function to improve collision detection during dragging
+    function handleTouchMove(e) {
+        if (isDragging) {
+            e.preventDefault();
+            
+            // Get the current touch position
+            const touch = e.touches[0];
+            const currentX = touch.clientX;
+            const currentY = touch.clientY;
+            
+            // Calculate the distance moved
+            const deltaX = currentX - lastTouchX;
+            const deltaY = currentY - lastTouchY;
+            
+            // Get current cursor position
+            const cursorRect = cursor.getBoundingClientRect();
+            const currentLeft = cursorRect.left;
+            const currentTop = cursorRect.top;
+            
+            // Calculate new position
+            let newLeft = currentLeft + deltaX;
+            let newTop = currentTop + deltaY;
+            
+            // Keep cursor within bounds
+            newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - cursorRect.width));
+            newTop = Math.max(0, Math.min(newTop, window.innerHeight - cursorRect.height));
+            
+            // Update cursor position
+            cursor.style.left = `${newLeft}px`;
+            cursor.style.top = `${newTop}px`;
+            
+            // Update cursorX and cursorY for collision detection
+            cursorX = newLeft + cursorRect.width / 2;
+            cursorY = newTop + cursorRect.height / 2;
+            
+            // Check for collisions with obstacles
+            document.querySelectorAll('.obstacle').forEach(obstacle => {
+                if (checkCollision(obstacle)) {
+                    // Add burst class to trigger animation
+                    obstacle.classList.add('burst');
+                    
+                    // Add screen shake
+                    addScreenShake();
+                    
+                    // Check if it's a super alien, danger alien, or villain
+                    const isSuper = obstacle.classList.contains('super-alien');
+                    const isDanger = obstacle.classList.contains('danger-alien');
+                    const isVillain = obstacle.classList.contains('ghost') || 
+                                     obstacle.classList.contains('skull') || 
+                                     obstacle.classList.contains('poison') || 
+                                     obstacle.classList.contains('bomb');
+                    
+                    // Update combo only for good obstacles
+                    if (!isDanger && !isVillain) {
+                        if (Date.now() - lastHitTime < comboTimeout) {
+                            combo++;
+                        } else {
+                            combo = 1;
+                        }
+                        lastHitTime = Date.now();
+                        
+                        // Show combo text if combo is greater than 1
+                        if (combo > 1) {
+                            showComboText();
+                        }
+                    } else {
+                        // Reset combo when hitting an enemy
+                        combo = 0;
+                        lastHitTime = 0;
+                    }
+                    
+                    let points = 10;
+                    if (isSuper) {
+                        points = 30;
+                        showSuperAlienEffect();
+                    } else if (isDanger || isVillain) {
+                        points = obstacle.dataset.points ? parseInt(obstacle.dataset.points) : -50;
+                        
+                        if (isDanger) {
+                            showDangerAlienEffect();
+                        } else if (obstacle.classList.contains('ghost')) {
+                            showGhostEffect();
+                        } else if (obstacle.classList.contains('skull')) {
+                            showSkullEffect();
+                        } else if (obstacle.classList.contains('poison')) {
+                            showPoisonEffect();
+                        } else if (obstacle.classList.contains('bomb')) {
+                            showBombEffect();
+                        }
+                    }
+                    
+                    // Apply combo multiplier to positive points only
+                    if (points > 0) {
+                        points *= combo;
+                    }
+                    
+                    // Apply power-up multiplier if active
+                    if (powerUps.multiplier.active && points > 0) {
+                        points *= powerUps.multiplier.value;
+                    }
+                    
+                    // Don't apply negative points if shield is active
+                    if (powerUps.shield.active && points < 0) {
+                        points = 0;
+                    }
+                    
+                    score += points;
+                    scoreElement.textContent = score;
+                    showScoreChange(points);
+                    
+                    // Check for game over condition
+                    if (score <= 0) {
+                        gameOver("Score reached zero");
+                    }
+                    
+                    // Play collect sound
+                    if (isDanger || isVillain) {
+                        playVillainSound();
+                    } else {
+                        playCollectSound();
+                    }
+                    
+                    // Create burst particles with different colors based on obstacle type
+                    const colors = obstacle.classList.contains('alien') ? ['#00ff87', '#60efff'] :
+                                 obstacle.classList.contains('meteor') ? ['#ff6b6b', '#ffd93d'] :
+                                 obstacle.classList.contains('ufo') ? ['#a8e6cf', '#dcedc1'] :
+                                 obstacle.classList.contains('super-alien') ? ['#4169e1', '#00bfff'] :
+                                 obstacle.classList.contains('danger-alien') ? ['#ff0000', '#ff4500'] :
+                                 obstacle.classList.contains('ghost') ? ['#c8c8ff', '#ffffff'] :
+                                 obstacle.classList.contains('skull') ? ['#969696', '#505050'] :
+                                 obstacle.classList.contains('poison') ? ['#00ff00', '#008000'] :
+                                 obstacle.classList.contains('bomb') ? ['#ffa500', '#ff4500'] :
+                                 ['#8b4513', '#a0522d'];
+                    
+                    createBurstParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, colors);
+                    
+                    // Remove obstacle after animation
+                    setTimeout(() => {
+                        obstacle.remove();
+                    }, 1000);
+                }
+            });
+            
+            // Calculate speed for trail effect
+            const currentTime = Date.now();
+            const deltaTime = currentTime - lastTouchTime;
+            const speed = Math.hypot(deltaX, deltaY) / deltaTime;
+            
+            // Create trail particles based on speed
+            if (speed > 0.1) {
+                const particleCount = Math.min(3, Math.floor(speed * 10));
+                for (let i = 0; i < particleCount; i++) {
+                    createTrailParticle(cursorX, cursorY, speed);
+                }
+            }
+            
+            // Update last position and time
+            lastTouchX = currentX;
+            lastTouchY = currentY;
+            lastTouchTime = currentTime;
+            
+            // Reset inactivity timer
+            resetInactivityTimer();
+        }
+    }
+
+    function handleTouchEnd(e) {
+        isDragging = false;
+    }
+
+    // Modify the existing DOMContentLoaded event listener to initialize touch controls
+    document.addEventListener('DOMContentLoaded', () => {
+        // ... existing code ...
+        
+        // Initialize touch controls for mobile
+        initTouchControls();
+        
+        // ... rest of existing code ...
+    });
 }); 
