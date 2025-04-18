@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="parallax-bg">
+        <div class="stars"></div>
+        <div class="nebula"></div>
+    </div>
+    
+    <div class="power-up-indicator">
+        <div class="power-up-icon" id="speed-icon">⚡</div>
+        <div class="power-up-icon" id="shield-icon">🛡️</div>
+        <div class="power-up-icon" id="multiplier-icon">✨</div>
+    </div>
+    
+    <div class="score">Score: <span id="score">0</span></div>
+    <div class="timeout-counter">Inactivity time: <span id="timeout">5.0</span>s</div>
+    
+    <div class="content">
+        <div class="cursor-follower">🚀</div>
+        <div class="cursor-trail"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
