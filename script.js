@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingElements = document.querySelectorAll('.floating-element');
     const scoreElement = document.getElementById('score');
     let score = 0;
+    let survivalBonus = 0;
     let combo = 0;
     let lastHitTime = 0;
     const comboTimeout = 2000; // 2 seconds to maintain combo
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let minSpawnInterval = 120; // Reduced from 180 to 120 milliseconds
     let spawnTimer = null;
     let gameStartTime = Date.now();
+    let lastScoreUpdate = Date.now();
     let superAlienActive = false;
     let lastActivityTime = Date.now();
     let inactivityTimeout = 5000; // 5 seconds of inactivity before game over
@@ -27,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let timeoutCounter = null;
     let timeoutElement = document.getElementById('timeout');
     let timeoutCounterElement = document.querySelector('.timeout-counter');
+    let gameActive = true; // Add flag to track if game is active
 
     // Volume controls
     let volume = 0.5; // Default volume
@@ -115,6 +118,11 @@ document.addEventListener('DOMContentLoaded', () => {
             oscillator.stop(audioContext.currentTime + 0.2);
             
             console.log('Collect sound played');
+            
+            const flash = document.createElement('div');
+            flash.className = 'powerup-flash';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 400);
         } catch (e) {
             console.error('Error playing collect sound:', e);
         }
@@ -345,17 +353,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Obstacle types and their emojis
     const obstacleTypes = [
-        { class: 'alien', emoji: '👾' },
-        { class: 'meteor', emoji: '☄️' },
-        { class: 'ufo', emoji: '🛸' },
-        { class: 'rock', emoji: '🪨' },
-        { class: 'super-alien', emoji: '👽', isSuper: true },
-        { class: 'danger-alien', emoji: '👾', isDanger: true, points: -50 },
-        { class: 'danger-alien', emoji: '👾', isDanger: true, points: -50 },
-        { class: 'ghost', emoji: '👻', isVillain: true, points: -30 },
-        { class: 'skull', emoji: '💀', isVillain: true, points: -40 },
-        { class: 'poison', emoji: '☠️', isVillain: true, points: -60 },
-        { class: 'bomb', emoji: '💣', isVillain: true, points: -70 }
+        { class: 'alien', emoji: '👾', points: 10 },
+        { class: 'meteor', emoji: '☄️', points: 15 },
+        { class: 'ufo', emoji: '🛸', points: 20 },
+        { class: 'rock', emoji: '🪨', points: 5 },
+        { class: 'super-alien', emoji: '👽', isSuper: true, points: 30 },
+        { class: 'danger-alien', emoji: '👾', isDanger: true, penalty: 0.5 }, // Reduces combo multiplier by 50%
+        { class: 'ghost', emoji: '👻', isVillain: true, penalty: 0.3 }, // Reduces combo multiplier by 70%
+        { class: 'skull', emoji: '💀', isVillain: true, penalty: 0.4 }, // Reduces combo multiplier by 60%
+        { class: 'poison', emoji: '☠️', isVillain: true, penalty: 0.2 }, // Reduces combo multiplier by 80%
+        { class: 'bomb', emoji: '💣', isVillain: true, penalty: 0.1 } // Reduces combo multiplier by 90%
     ];
 
     // Initialize background parallax
@@ -427,6 +434,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById(`${type}-icon`).classList.remove('active');
             effect.remove();
         }, duration);
+        
+        const flash = document.createElement('div');
+        flash.className = 'powerup-flash';
+        document.body.appendChild(flash);
+        setTimeout(() => flash.remove(), 400);
     }
 
     // Modify the existing createPowerUp function
@@ -507,7 +519,108 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start particle update loop
     updateTrailParticles();
 
-    // Update cursor position with smooth animation and trail effect
+    // Function to handle obstacle collision
+    function handleObstacleCollision(obstacle, currentTime) {
+        if (obstacle.classList.contains('burst')) return;
+        
+        // Add burst class to trigger animation
+        obstacle.classList.add('burst');
+        
+        // Add screen shake
+        addScreenShake();
+        
+        // Get obstacle type
+        const obstacleType = obstacleTypes.find(type => obstacle.classList.contains(type.class));
+        if (!obstacleType) return; // Safety check
+        
+        // Check if it's a super alien, danger alien, or villain
+        const isSuper = obstacle.classList.contains('super-alien');
+        const isDanger = obstacle.classList.contains('danger-alien');
+        const isVillain = obstacle.classList.contains('ghost') || 
+                         obstacle.classList.contains('skull') || 
+                         obstacle.classList.contains('poison') || 
+                         obstacle.classList.contains('bomb');
+        
+        // Get base points (default to 10 if not specified)
+        let points = obstacleType.points || 10;
+        
+        // Handle good obstacles (aliens, meteors, UFOs, rocks, super-aliens)
+        if (!isDanger && !isVillain) {
+            // Update combo
+            if (currentTime - lastHitTime < comboTimeout) {
+                combo++;
+            } else {
+                combo = 1;
+            }
+            lastHitTime = currentTime;
+            
+            // Show combo text if combo is greater than 1
+            if (combo > 1) {
+                showComboText();
+            }
+            
+            // Apply combo multiplier to points
+            points *= combo;
+            
+            // Apply power-up multiplier if active
+            if (powerUps.multiplier.active) {
+                points *= powerUps.multiplier.value;
+            }
+            
+            // Add points to score
+            score = Math.max(0, score + points);
+            scoreElement.textContent = score;
+            showScoreChange(points);
+            
+            // Play collect sound
+            playCollectSound();
+        } 
+        // Handle bad obstacles (danger-aliens, ghosts, skulls, poison, bombs)
+        else {
+            // Show appropriate effect
+            if (isDanger) {
+                showDangerAlienEffect();
+            } else if (obstacle.classList.contains('ghost')) {
+                showGhostEffect();
+            } else if (obstacle.classList.contains('skull')) {
+                showSkullEffect();
+            } else if (obstacle.classList.contains('poison')) {
+                showPoisonEffect();
+            } else if (obstacle.classList.contains('bomb')) {
+                showBombEffect();
+            }
+            
+            // Play villain sound
+            playVillainSound();
+            
+            // End game immediately for bad obstacles
+            gameOver("Game Over!!");
+            return;
+        }
+        
+        // Create burst particles with different colors based on obstacle type
+        const colors = obstacle.classList.contains('alien') ? ['#00ff87', '#60efff'] :
+                      obstacle.classList.contains('meteor') ? ['#ff6b6b', '#ffd93d'] :
+                      obstacle.classList.contains('ufo') ? ['#a8e6cf', '#dcedc1'] :
+                      obstacle.classList.contains('super-alien') ? ['#4169e1', '#00bfff'] :
+                      obstacle.classList.contains('danger-alien') ? ['#ff0000', '#ff4500'] :
+                      obstacle.classList.contains('ghost') ? ['#c8c8ff', '#ffffff'] :
+                      obstacle.classList.contains('skull') ? ['#969696', '#505050'] :
+                      obstacle.classList.contains('poison') ? ['#00ff00', '#008000'] :
+                      obstacle.classList.contains('bomb') ? ['#ffa500', '#ff4500'] :
+                      ['#8b4513', '#a0522d'];
+        
+        createBurstParticles(obstacle.getBoundingClientRect().left + obstacle.offsetWidth / 2,
+                           obstacle.getBoundingClientRect().top + obstacle.offsetHeight / 2,
+                           colors);
+        
+        // Remove obstacle after animation
+        setTimeout(() => {
+            obstacle.remove();
+        }, 1000);
+    }
+
+    // Update the mousemove event listener to use the new collision handler
     document.addEventListener('mousemove', (e) => {
         // Reset inactivity timer on mouse movement
         resetInactivityTimer();
@@ -569,108 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const collisionThreshold = Math.max(rect.width, rect.height) * 0.6;
                 
                 if (distance < collisionThreshold) {
-                    // Add burst class to trigger animation
-                    obstacle.classList.add('burst');
-                    
-                    // Add screen shake
-                    addScreenShake();
-                    
-                    // Check if it's a super alien, danger alien, or villain
-                    const isSuper = obstacle.classList.contains('super-alien');
-                    const isDanger = obstacle.classList.contains('danger-alien');
-                    const isVillain = obstacle.classList.contains('ghost') || 
-                                     obstacle.classList.contains('skull') || 
-                                     obstacle.classList.contains('poison') || 
-                                     obstacle.classList.contains('bomb');
-                    
-                    // Update combo only for good obstacles
-                    if (!isDanger && !isVillain) {
-                        if (currentTime - lastHitTime < comboTimeout) {
-                            combo++;
-                        } else {
-                            combo = 1;
-                        }
-                        lastHitTime = currentTime;
-                        
-                        // Show combo text if combo is greater than 1
-                        if (combo > 1) {
-                            showComboText();
-                        }
-                    } else {
-                        // Reset combo when hitting an enemy
-                        combo = 0;
-                        lastHitTime = 0;
-                    }
-                    
-                    let points = 10;
-                    if (isSuper) {
-                        points = 30;
-                        showSuperAlienEffect();
-                    } else if (isDanger || isVillain) {
-                        points = obstacle.dataset.points ? parseInt(obstacle.dataset.points) : -50;
-                        
-                        if (isDanger) {
-                            showDangerAlienEffect();
-                        } else if (obstacle.classList.contains('ghost')) {
-                            showGhostEffect();
-                        } else if (obstacle.classList.contains('skull')) {
-                            showSkullEffect();
-                        } else if (obstacle.classList.contains('poison')) {
-                            showPoisonEffect();
-                        } else if (obstacle.classList.contains('bomb')) {
-                            showBombEffect();
-                        }
-                    }
-                    
-                    // Apply combo multiplier to positive points only
-                    if (points > 0) {
-                        points *= combo;
-                    }
-                    
-                    // Apply power-up multiplier if active
-                    if (powerUps.multiplier.active && points > 0) {
-                        points *= powerUps.multiplier.value;
-                    }
-                    
-                    // Don't apply negative points if shield is active
-                    if (powerUps.shield.active && points < 0) {
-                        points = 0;
-                    }
-                    
-                    score += points;
-                    scoreElement.textContent = score;
-                    showScoreChange(points);
-                    
-                    // Check for game over condition
-                    if (score <= 0) {
-                        gameOver("Score reached zero");
-                    }
-                    
-                    // Play collect sound
-                    if (isDanger || isVillain) {
-                        playVillainSound();
-                    } else {
-                        playCollectSound();
-                    }
-                    
-                    // Create burst particles with different colors based on obstacle type
-                    const colors = obstacle.classList.contains('alien') ? ['#00ff87', '#60efff'] :
-                                 obstacle.classList.contains('meteor') ? ['#ff6b6b', '#ffd93d'] :
-                                 obstacle.classList.contains('ufo') ? ['#a8e6cf', '#dcedc1'] :
-                                 obstacle.classList.contains('super-alien') ? ['#4169e1', '#00bfff'] :
-                                 obstacle.classList.contains('danger-alien') ? ['#ff0000', '#ff4500'] :
-                                 obstacle.classList.contains('ghost') ? ['#c8c8ff', '#ffffff'] :
-                                 obstacle.classList.contains('skull') ? ['#969696', '#505050'] :
-                                 obstacle.classList.contains('poison') ? ['#00ff00', '#008000'] :
-                                 obstacle.classList.contains('bomb') ? ['#ffa500', '#ff4500'] :
-                                 ['#8b4513', '#a0522d'];
-                    
-                    createBurstParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, colors);
-                    
-                    // Remove obstacle after animation
-                    setTimeout(() => {
-                        obstacle.remove();
-                    }, 1000);
+                    handleObstacleCollision(obstacle, currentTime);
                 }
             }
         });
@@ -732,29 +744,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to create enhanced burst particles
     function createBurstParticles(x, y, colors) {
-        for (let i = 0; i < 20; i++) {
+        // Increase number of particles and add size variation
+        const numParticles = 30;
+        const baseSize = 6;
+        
+        for (let i = 0; i < numParticles; i++) {
             const particle = document.createElement('div');
             particle.className = 'particle';
+            
+            // Randomize particle size
+            const size = baseSize + Math.random() * 8;
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+            
             particle.style.left = `${x}px`;
             particle.style.top = `${y}px`;
-            particle.style.background = `linear-gradient(45deg, ${colors[0]}, ${colors[1]})`;
+            
+            // Create gradient with random angle
+            const angle = Math.random() * 360;
+            particle.style.background = `linear-gradient(${angle}deg, ${colors[0]}, ${colors[1]})`;
+            
+            // Add glow effect
+            particle.style.boxShadow = `0 0 ${size * 2}px ${colors[0]}`;
+            
             document.body.appendChild(particle);
 
-            const angle = (Math.random() * 360) * (Math.PI / 180);
-            const velocity = 2 + Math.random() * 3;
-            const vx = Math.cos(angle) * velocity;
-            const vy = Math.sin(angle) * velocity;
+            const velocity = 2 + Math.random() * 4;
+            const particleAngle = (Math.random() * 360) * (Math.PI / 180);
+            const vx = Math.cos(particleAngle) * velocity;
+            const vy = Math.sin(particleAngle) * velocity;
 
             let posX = x;
             let posY = y;
             let opacity = 1;
+            let rotation = Math.random() * 360;
 
             function animateParticle() {
                 posX += vx;
                 posY += vy;
                 opacity -= 0.02;
+                rotation += 5;
 
-                particle.style.transform = `translate(${posX - x}px, ${posY - y}px)`;
+                particle.style.transform = `translate(${posX - x}px, ${posY - y}px) rotate(${rotation}deg)`;
                 particle.style.opacity = opacity;
 
                 if (opacity > 0) {
@@ -952,6 +983,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Reset inactivity timer
     function resetInactivityTimer() {
+        if (!gameActive) return; // Don't reset timer if game is not active
+        
         lastActivityTime = Date.now();
         
         // Clear existing timers
@@ -971,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Set new timer
         inactivityTimer = setTimeout(() => {
-            if (Date.now() - lastActivityTime >= inactivityTimeout) {
+            if (gameActive && Date.now() - lastActivityTime >= inactivityTimeout) {
                 gameOver("Inactivity timeout");
             }
         }, inactivityTimeout);
@@ -980,8 +1013,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize inactivity timer
     resetInactivityTimer();
 
+    // Function to update score display
+    function updateScoreDisplay() {
+        const currentTime = Date.now();
+        const timeElapsed = currentTime - lastScoreUpdate;
+        
+        // Update survival bonus (1 point per second)
+        survivalBonus = Math.floor((currentTime - gameStartTime) / 1000);
+        
+        // Calculate total score (ensure it never goes below 0)
+        const totalScore = Math.max(0, score + survivalBonus);
+        
+        // Update score display
+        scoreElement.innerHTML = `
+            <div>Points: ${score}</div>
+            <div>Survival Bonus: +${survivalBonus}</div>
+            <div>Total: ${totalScore}</div>
+        `;
+        
+        lastScoreUpdate = currentTime;
+    }
+
+    // Add score update to the animation loop
+    function updateGame() {
+        updateScoreDisplay();
+        requestAnimationFrame(updateGame);
+    }
+
+    // Start the game update loop
+    updateGame();
+
     // Function to handle game over
     function gameOver(reason = "Score reached zero") {
+        if (!gameActive) return; // Prevent multiple game over calls
+        gameActive = false; // Set game as inactive
+        
         // Stop spawning new obstacles
         clearTimeout(spawnTimer);
         clearTimeout(inactivityTimer);
@@ -1008,12 +1074,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // Play game over sound
         playGameOverSound();
         
+        // Calculate final score
+        const finalScore = score + survivalBonus;
+        
         // Create game over message
         const gameOverMessage = document.createElement('div');
         gameOverMessage.className = 'game-over';
         gameOverMessage.innerHTML = `
             <h2>Game Over</h2>
-            <p>Your score: ${score}</p>
+            <div class="score-breakdown">
+                <p>Points Collected: ${score}</p>
+                <p>Survival Bonus: +${survivalBonus}</p>
+                <p class="final-score">Final Score: ${finalScore}</p>
+            </div>
             <p class="game-over-reason">${reason}</p>
             <button id="restart-button">Play Again</button>
         `;
@@ -1029,15 +1102,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Reset game state
             score = 0;
+            survivalBonus = 0;
             combo = 0;
             lastHitTime = 0;
-            scoreElement.textContent = score;
+            scoreElement.textContent = '0';
             
             // Reset spawn interval
             spawnInterval = 800;
             
             // Reset game start time
             gameStartTime = Date.now();
+            lastScoreUpdate = Date.now();
             
             // Reset last activity time
             lastActivityTime = Date.now();
@@ -1045,6 +1120,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset timeout counter display
             timeoutElement.textContent = (inactivityTimeout / 1000).toFixed(1);
             timeoutCounterElement.classList.remove('warning');
+            
+            // Set game as active again
+            gameActive = true;
             
             // Start spawning obstacles again
             scheduleNextSpawn();
@@ -1224,7 +1302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(updateTimer);
     }
 
-    // Modify the existing game over function
+    // Modify the existing game over function to show final score breakdown
     const originalGameOver = gameOver;
     gameOver = function(reason = "Score reached zero") {
         updateHighScore();
@@ -1451,6 +1529,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                      obstacle.classList.contains('poison') || 
                                      obstacle.classList.contains('bomb');
                     
+                    // Get base points from obstacle type
+                    const obstacleType = obstacleTypes.find(type => obstacle.classList.contains(type.class));
+                    let points = obstacleType ? obstacleType.points : 10;
+                    
                     // Update combo only for good obstacles
                     if (!isDanger && !isVillain) {
                         if (Date.now() - lastHitTime < comboTimeout) {
@@ -1465,54 +1547,30 @@ document.addEventListener('DOMContentLoaded', () => {
                             showComboText();
                         }
                     } else {
-                        // Reset combo when hitting an enemy
-                        combo = 0;
-                        lastHitTime = 0;
-                    }
-                    
-                    let points = 10;
-                    if (isSuper) {
-                        points = 30;
-                        showSuperAlienEffect();
-                    } else if (isDanger || isVillain) {
-                        points = obstacle.dataset.points ? parseInt(obstacle.dataset.points) : -50;
+                        // Apply penalty to combo instead of resetting it
+                        const penalty = obstacleType.penalty || 0.5;
+                        combo = Math.max(1, Math.floor(combo * penalty));
                         
-                        if (isDanger) {
-                            showDangerAlienEffect();
-                        } else if (obstacle.classList.contains('ghost')) {
-                            showGhostEffect();
-                        } else if (obstacle.classList.contains('skull')) {
-                            showSkullEffect();
-                        } else if (obstacle.classList.contains('poison')) {
-                            showPoisonEffect();
-                        } else if (obstacle.classList.contains('bomb')) {
-                            showBombEffect();
-                        }
+                        // Show penalty text
+                        const penaltyElement = document.createElement('div');
+                        penaltyElement.className = 'penalty-text';
+                        penaltyElement.textContent = `Combo Reduced!`;
+                        document.body.appendChild(penaltyElement);
+                        setTimeout(() => penaltyElement.remove(), 1000);
                     }
                     
-                    // Apply combo multiplier to positive points only
-                    if (points > 0) {
-                        points *= combo;
-                    }
+                    // Apply combo multiplier to points
+                    points *= combo;
                     
                     // Apply power-up multiplier if active
                     if (powerUps.multiplier.active && points > 0) {
                         points *= powerUps.multiplier.value;
                     }
                     
-                    // Don't apply negative points if shield is active
-                    if (powerUps.shield.active && points < 0) {
-                        points = 0;
-                    }
-                    
-                    score += points;
+                    // Add points to score (ensure it never goes below 0)
+                    score = Math.max(0, score + points);
                     scoreElement.textContent = score;
                     showScoreChange(points);
-                    
-                    // Check for game over condition
-                    if (score <= 0) {
-                        gameOver("Score reached zero");
-                    }
                     
                     // Play collect sound
                     if (isDanger || isVillain) {
