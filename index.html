@@ -3,9 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Space Game</title>
+    <title>Space Dexterity Game - Improve Mouse & Trackpad Control</title>
+    <meta name="description" content="Enhance your mouse and trackpad dexterity with this engaging space-themed game. Improve cursor precision, hand-eye coordination, and fine motor skills through fun gameplay.">
+    <meta name="keywords" content="dexterity game, mouse control, trackpad skills, hand-eye coordination, cursor precision, fine motor skills, space game">
+    <meta name="author" content="Space Dexterity Game">
+    <meta property="og:title" content="Space Dexterity Game - Improve Mouse & Trackpad Control">
+    <meta property="og:description" content="Enhance your mouse and trackpad dexterity with this engaging space-themed game. Improve cursor precision and hand-eye coordination.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://yourgameurl.com">
+    <meta property="og:image" content="https://example.com/space-dexterity-game.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Space Dexterity Game - Improve Mouse & Trackpad Control">
+    <meta name="twitter:description" content="Enhance your mouse and trackpad dexterity with this engaging space-themed game. Improve cursor precision and hand-eye coordination.">
+    <meta name="twitter:image" content="https://example.com/space-dexterity-game.jpg">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Space Dexterity Game",
+        "description": "A space-themed game designed to improve mouse and trackpad dexterity, cursor precision, and hand-eye coordination.",
+        "genre": "Educational",
+        "gamePlatform": "Web Browser",
+        "applicationCategory": "EducationalApplication",
+        "interactivityType": "active",
+        "educationalUse": "Skill Development",
+        "educationalAlignment": {
+            "@type": "AlignmentObject",
+            "alignmentType": "educationalSubject",
+            "targetName": "Fine Motor Skills"
+        }
+    }
+    </script>
 </head>
 <body>
     <div class="parallax-bg">
@@ -13,10 +43,23 @@
         <div class="nebula"></div>
     </div>
     
-    <div class="power-up-indicator">
-        <div class="power-up-icon" id="speed-icon">⚡</div>
-        <div class="power-up-icon" id="shield-icon">🛡️</div>
-        <div class="power-up-icon" id="multiplier-icon">✨</div>
+    <!-- Game Introduction Modal -->
+    <div class="modal" id="intro-modal">
+        <div class="modal-content">
+            <h1>Space Dexterity Game</h1>
+            <p class="game-description">Navigate through space, collect stars, and avoid obstacles to improve your mouse and trackpad control. Perfect for enhancing cursor precision and hand-eye coordination.</p>
+            <div class="benefits">
+                <h2>Benefits</h2>
+                <ul>
+                    <li>Enhance cursor precision</li>
+                    <li>Improve hand-eye coordination</li>
+                    <li>Develop fine motor skills</li>
+                    <li>Practice trackpad control</li>
+                    <li>Boost reaction time</li>
+                </ul>
+            </div>
+            <button id="start-game-btn" class="start-button">Start Game</button>
+        </div>
     </div>
     
     <div class="score">Score: <span id="score">0</span></div>
@@ -26,6 +69,10 @@
         <div class="cursor-follower">🚀</div>
         <div class="cursor-trail"></div>
     </div>
+
+    <footer>
+        <p>Use your mouse or trackpad to navigate and collect stars while avoiding obstacles</p>
+    </footer>
 
     <script src="script.js"></script>
 </body>

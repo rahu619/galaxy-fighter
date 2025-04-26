@@ -358,11 +358,11 @@ document.addEventListener('DOMContentLoaded', () => {
         { class: 'ufo', emoji: '🛸', points: 20 },
         { class: 'rock', emoji: '🪨', points: 5 },
         { class: 'super-alien', emoji: '👽', isSuper: true, points: 30 },
-        { class: 'danger-alien', emoji: '👾', isDanger: true, penalty: 0.5 }, // Reduces combo multiplier by 50%
-        { class: 'ghost', emoji: '👻', isVillain: true, penalty: 0.3 }, // Reduces combo multiplier by 70%
-        { class: 'skull', emoji: '💀', isVillain: true, penalty: 0.4 }, // Reduces combo multiplier by 60%
-        { class: 'poison', emoji: '☠️', isVillain: true, penalty: 0.2 }, // Reduces combo multiplier by 80%
-        { class: 'bomb', emoji: '💣', isVillain: true, penalty: 0.1 } // Reduces combo multiplier by 90%
+        { class: 'danger-alien', emoji: '👾', isDanger: true },
+        { class: 'ghost', emoji: '👻', isVillain: true },
+        { class: 'skull', emoji: '💀', isVillain: true },
+        { class: 'poison', emoji: '☠️', isVillain: true },
+        { class: 'bomb', emoji: '💣', isVillain: true }
     ];
 
     // Initialize background parallax
@@ -1530,34 +1530,40 @@ document.addEventListener('DOMContentLoaded', () => {
                                      obstacle.classList.contains('poison') || 
                                      obstacle.classList.contains('bomb');
                     
-                    // Get base points from obstacle type
+                    // If it's a bad obstacle, end the game immediately
+                    if (isDanger || isVillain) {
+                        // Play villain sound
+                        playVillainSound();
+                        
+                        // Create burst effect
+                        const colors = obstacle.classList.contains('danger-alien') ? ['#ff0000', '#ff4500'] :
+                                     obstacle.classList.contains('ghost') ? ['#c8c8ff', '#ffffff'] :
+                                     obstacle.classList.contains('skull') ? ['#969696', '#505050'] :
+                                     obstacle.classList.contains('poison') ? ['#00ff00', '#008000'] :
+                                     ['#ffa500', '#ff4500']; // bomb
+                        
+                        createBurstParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, colors);
+                        
+                        // End game
+                        gameOver("Game Over!!");
+                        return;
+                    }
+                    
+                    // Handle good obstacles
                     const obstacleType = obstacleTypes.find(type => obstacle.classList.contains(type.class));
                     let points = obstacleType ? obstacleType.points : 10;
                     
-                    // Update combo only for good obstacles
-                    if (!isDanger && !isVillain) {
-                        if (Date.now() - lastHitTime < comboTimeout) {
-                            combo++;
-                        } else {
-                            combo = 1;
-                        }
-                        lastHitTime = Date.now();
-                        
-                        // Show combo text if combo is greater than 1
-                        if (combo > 1) {
-                            showComboText();
-                        }
+                    // Update combo
+                    if (Date.now() - lastHitTime < comboTimeout) {
+                        combo++;
                     } else {
-                        // Apply penalty to combo instead of resetting it
-                        const penalty = obstacleType.penalty || 0.5;
-                        combo = Math.max(1, Math.floor(combo * penalty));
-                        
-                        // Show penalty text
-                        const penaltyElement = document.createElement('div');
-                        penaltyElement.className = 'penalty-text';
-                        penaltyElement.textContent = `Combo Reduced!`;
-                        document.body.appendChild(penaltyElement);
-                        setTimeout(() => penaltyElement.remove(), 1000);
+                        combo = 1;
+                    }
+                    lastHitTime = Date.now();
+                    
+                    // Show combo text if combo is greater than 1
+                    if (combo > 1) {
+                        showComboText();
                     }
                     
                     // Apply combo multiplier to points
@@ -1568,29 +1574,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         points *= powerUps.multiplier.value;
                     }
                     
-                    // Add points to score (ensure it never goes below 0)
+                    // Add points to score
                     score = Math.max(0, score + points);
                     scoreElement.textContent = score;
                     showScoreChange(points);
                     
                     // Play collect sound
-                    if (isDanger || isVillain) {
-                        playVillainSound();
-                    } else {
-                        playCollectSound();
-                    }
+                    playCollectSound();
                     
-                    // Create burst particles with different colors based on obstacle type
+                    // Create burst particles
                     const colors = obstacle.classList.contains('alien') ? ['#00ff87', '#60efff'] :
                                  obstacle.classList.contains('meteor') ? ['#ff6b6b', '#ffd93d'] :
                                  obstacle.classList.contains('ufo') ? ['#a8e6cf', '#dcedc1'] :
-                                 obstacle.classList.contains('super-alien') ? ['#4169e1', '#00bfff'] :
-                                 obstacle.classList.contains('danger-alien') ? ['#ff0000', '#ff4500'] :
-                                 obstacle.classList.contains('ghost') ? ['#c8c8ff', '#ffffff'] :
-                                 obstacle.classList.contains('skull') ? ['#969696', '#505050'] :
-                                 obstacle.classList.contains('poison') ? ['#00ff00', '#008000'] :
-                                 obstacle.classList.contains('bomb') ? ['#ffa500', '#ff4500'] :
-                                 ['#8b4513', '#a0522d'];
+                                 ['#4169e1', '#00bfff']; // super-alien
                     
                     createBurstParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, colors);
                     
@@ -1636,5 +1632,25 @@ document.addEventListener('DOMContentLoaded', () => {
         initTouchControls();
         
         // ... rest of existing code ...
+    });
+
+    // Modal functionality
+    const modal = document.getElementById('intro-modal');
+    const startButton = document.getElementById('start-game-btn');
+    
+    // Show modal on page load
+    modal.style.display = 'flex';
+    
+    // Hide cursor follower initially
+    document.querySelector('.cursor-follower').style.display = 'none';
+    
+    // Start game when button is clicked
+    startButton.addEventListener('click', function() {
+        modal.style.display = 'none';
+        document.querySelector('.cursor-follower').style.display = 'block';
+        
+        // Initialize game here if needed
+        // For example, if you have a game initialization function:
+        // initGame();
     });
 }); 
