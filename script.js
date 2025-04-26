@@ -1246,8 +1246,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update high score
     function updateHighScore() {
-        if (score > highScore) {
-            highScore = score;
+        const totalScore = score + survivalBonus;
+        if (totalScore > highScore) {
+            highScore = totalScore;
             localStorage.setItem('highScore', highScore);
             highScoreElement.querySelector('span').textContent = highScore;
             
